@@ -80,10 +80,12 @@ describe('Batería de pruebas de smoke sobre la home', () => {
         cy.contains('h3', 'No se encontraron productos').should('be.visible')
         cy.contains('p', 'Intenta ajustar los filtros o busca otro término.').should('be.visible')
 
-        // Limpiamos la búsqueda y repetimos con un término válido para comprobar recuperación del flujo.
-        cy.get('header [type="search"]').clear().should('have.value', '').type('Nike{enter}')
-        cy.get('#product-list-header').should('contain', 'Resultados para "Nike"')
-        cy.get('app-product-card').its('length').should('be.greaterThan', 0)
+        // BUG esperado: al limpiar la búsqueda deberían desaparecer el filtro y el estado sin resultados.
+        cy.get('header [type="search"]').clear().type('{enter}')
+
+        cy.url().should('not.include', 'name=producto_que_no_existe_qa_2026')
+        cy.contains('h3', 'No se encontraron productos', { timeout: 20000 }).should('not.exist')
+        cy.get('app-product-card', { timeout: 20000 }).its('length').should('be.greaterThan', 0)
     })
 
 })
