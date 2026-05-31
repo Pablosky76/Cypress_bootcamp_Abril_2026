@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/Pablosky76/Cypress_bootcamp_Abril_2026#readme",
   "devDependencies": {
-    "cypress": "^15.15.0"
+    "cypress": "^15.15.0",
+    "cypress-plugin-api": "^2.11.2"
   }
 }

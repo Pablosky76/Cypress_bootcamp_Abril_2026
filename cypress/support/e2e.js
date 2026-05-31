@@ -15,3 +15,7 @@
 
 // Import commands.js using ES2015 syntax:
 import './commands'
+
+// cypress-plugin-api añade el comando cy.api().
+// Es parecido a cy.request(), pero muestra la respuesta de la API de forma más visual en el runner de Cypress.
+import 'cypress-plugin-api'

@@ -1,12 +1,14 @@
 /// <reference types="cypress" />
-// Sirve para que el editor conozca los comandos de Cypress, por ejemplo cy.request().
+// Sirve para que el editor conozca los comandos de Cypress, por ejemplo cy.api().
 
 describe('Batería de pruebas GET sobre la API de Footer', () => {
     // describe agrupa varios tests que pertenecen a la misma batería de pruebas.
     // En este caso todos son tests de tipo GET contra la API de Footer.
 
     // Chuleta rápida para explicar en clase:
-    // - cy.request() hace una petición HTTP directamente a la API.
+    // - cy.api() hace una petición HTTP directamente a la API.
+    // - cy.api() viene del plugin cypress-plugin-api.
+    // - Es parecido a cy.request(), pero enseña la respuesta más bonita en el runner de Cypress.
     // - GET significa que solo pedimos información, no creamos ni modificamos datos.
     // - then((response) => {}) espera la respuesta y nos deja revisarla.
     // - response.status es el código HTTP, por ejemplo 200 si todo va bien.
@@ -17,11 +19,18 @@ describe('Batería de pruebas GET sobre la API de Footer', () => {
     // Así, si mañana cambia el dominio, solo habría que modificar esta línea.
     const apiUrl = 'https://footer-back.onrender.com/api'
 
+    // Usuario de pruebas que ya usamos en los tests de login de la web.
+    // Lo necesitamos para pedir el carrito, porque el carrito es privado.
+    // En un proyecto real no dejaríamos contraseñas escritas en el test,
+    // pero para el ejercicio de clase usamos el usuario de pruebas del bootcamp.
+    const userEmail = 'cypress_bootcamp_2026@pablo.com'
+    const userPassword = '123412P!'
+
     it('ID:TC013 - GET listado general de productos', () => {
         // it define un caso de prueba concreto.
         // Aquí pedimos el listado general de productos.
         // La respuesta viene paginada, por eso trae datos como currentPage, totalItems y products.
-        cy.request('GET', `${apiUrl}/products/`).then((response) => {
+        cy.api('GET', `${apiUrl}/products/`).then((response) => {
             // Comprobamos que la API responde correctamente.
             expect(response.status).to.eq(200)
 
@@ -49,7 +58,7 @@ describe('Batería de pruebas GET sobre la API de Footer', () => {
     it('ID:TC014 - GET listado de productos indicando page=1', () => {
         // Este endpoint pide la primera página de forma explícita con query param.
         // El query param es la parte que va después del ?, en este caso page=1.
-        cy.request('GET', `${apiUrl}/products?page=1`).then((response) => {
+        cy.api('GET', `${apiUrl}/products?page=1`).then((response) => {
             // 200 significa que la petición ha sido correcta.
             expect(response.status).to.eq(200)
 
@@ -72,7 +81,7 @@ describe('Batería de pruebas GET sobre la API de Footer', () => {
 
     it('ID:TC015 - GET productos filtrados por categoría zapatillas', () => {
         // Pedimos solo productos de la categoría zapatillas.
-        cy.request('GET', `${apiUrl}/products?category=zapatillas`).then((response) => {
+        cy.api('GET', `${apiUrl}/products?category=zapatillas`).then((response) => {
             // Validamos que la respuesta de la API ha ido bien.
             expect(response.status).to.eq(200)
 
@@ -105,7 +114,7 @@ describe('Batería de pruebas GET sobre la API de Footer', () => {
 
     it('ID:TC016 - GET productos filtrados por categoría ropa', () => {
         // Pedimos solo productos de ropa y validamos que no se mezclan otras categorías.
-        cy.request('GET', `${apiUrl}/products?category=ropa`).then((response) => {
+        cy.api('GET', `${apiUrl}/products?category=ropa`).then((response) => {
             // La API debe responder con OK.
             expect(response.status).to.eq(200)
 
@@ -137,7 +146,7 @@ describe('Batería de pruebas GET sobre la API de Footer', () => {
 
     it('ID:TC017 - GET productos filtrados por categoría complementos', () => {
         // Pedimos solo complementos. Además de la categoría, comprobamos datos básicos de cada producto.
-        cy.request('GET', `${apiUrl}/products?category=complementos`).then((response) => {
+        cy.api('GET', `${apiUrl}/products?category=complementos`).then((response) => {
             // Validamos que la llamada devuelve código 200.
             expect(response.status).to.eq(200)
 
@@ -170,7 +179,7 @@ describe('Batería de pruebas GET sobre la API de Footer', () => {
     it('ID:TC018 - GET detalle del producto 141', () => {
         // Este test consulta un producto concreto. El id 141 corresponde a Nike Club Fleece.
         // A diferencia del listado, aquí esperamos un solo objeto de producto.
-        cy.request('GET', `${apiUrl}/products/141`).then((response) => {
+        cy.api('GET', `${apiUrl}/products/141`).then((response) => {
             // La petición al detalle debe ser correcta.
             expect(response.status).to.eq(200)
 
@@ -194,7 +203,7 @@ describe('Batería de pruebas GET sobre la API de Footer', () => {
     it('ID:TC019 - GET productos relacionados del producto 141', () => {
         // Este endpoint devuelve un array directamente, no un objeto paginado.
         // Sirve para pintar productos recomendados o parecidos en la ficha del producto.
-        cy.request('GET', `${apiUrl}/products/141/related`).then((response) => {
+        cy.api('GET', `${apiUrl}/products/141/related`).then((response) => {
             // Comprobamos que la petición responde bien.
             expect(response.status).to.eq(200)
 
@@ -221,31 +230,70 @@ describe('Batería de pruebas GET sobre la API de Footer', () => {
         })
     })
 
-    it('ID:TC020 - GET carrito sin token', () => {
-        // El carrito es privado. Como no mandamos token, esperamos un error controlado de autorización.
-        // Usamos failOnStatusCode: false para que Cypress no pare el test al recibir el 401.
-        // Si no pusiéramos esto, Cypress fallaría automáticamente al ver un código de error.
-        cy.request({
-            // Indicamos el método de la petición.
-            method: 'GET',
+    it('ID:TC020 - GET carrito iniciando sesión antes', () => {
+        // El carrito es privado, por eso primero hacemos login contra la API.
+        // El login nos devuelve un token, que es como una "llave" para poder pedir el carrito.
+        // Importante: aunque el ejercicio pide probar el endpoint GET /cart,
+        // antes hacemos un POST /auth/login solo como preparación del test.
+        // Es igual que iniciar sesión en la web antes de entrar en "Mi carrito".
+        cy.api('POST', `${apiUrl}/auth/login`, {
+            // Enviamos el email y la contraseña en el body de la petición.
+            // El body es la información que mandamos a la API.
+            email: userEmail,
+            password: userPassword,
+        }).then((loginResponse) => {
+            // loginResponse es la respuesta del endpoint /auth/login.
+            // Comprobamos que el login ha ido bien antes de pedir el carrito.
+            expect(loginResponse.status).to.eq(200)
 
-            // Indicamos la URL del endpoint de carrito.
-            url: `${apiUrl}/cart`,
+            // La API devuelve este mensaje cuando las credenciales son correctas.
+            expect(loginResponse.body.message).to.eq('Inicio de sesión exitoso')
 
-            // Permitimos revisar manualmente una respuesta con error HTTP.
-            failOnStatusCode: false,
-        }).then((response) => {
-            // 401 significa no autorizado.
-            expect(response.status).to.eq(401)
+            // El token debe existir, ser texto y no estar vacío.
+            // Si no hubiera token, no podríamos demostrar que estamos autenticados.
+            expect(loginResponse.body.token).to.be.a('string').and.not.be.empty
 
-            // Aunque sea error, la API devuelve un body en formato objeto.
-            expect(response.body).to.be.an('object')
+            // Guardamos el token en una constante para usarlo en la petición del carrito.
+            // El token normalmente es un texto largo que identifica al usuario durante un tiempo.
+            // Así la API sabe que somos el usuario logueado sin mandar email y password otra vez.
+            const token = loginResponse.body.token
 
-            // Validamos el mensaje exacto que devuelve la API cuando falta el token.
-            expect(response.body.message).to.eq('Token requerido')
+            // Ahora sí pedimos el carrito enviando el token en la cabecera Authorization.
+            // Las headers o cabeceras son información extra que viaja con la petición.
+            // No forman parte de la URL ni del body, pero la API las puede leer.
+            //
+            // Authorization es la cabecera estándar para mandar credenciales.
+            // Bearer significa "portador": le estamos diciendo a la API
+            // "te mando este token como prueba de que he iniciado sesión".
+            //
+            // Tiene que ir exactamente con este formato:
+            // Authorization: Bearer TOKEN
+            //
+            // Por eso escribimos `Bearer ${token}`:
+            // - Bearer es una palabra fija.
+            // - ${token} mete dentro del texto el token que recibimos en el login.
+            cy.api({
+                method: 'GET',
+                url: `${apiUrl}/cart`,
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            }).then((cartResponse) => {
+                // cartResponse es la respuesta del endpoint /cart.
+                // Si quitáramos la cabecera Authorization, la API respondería 401 Token requerido.
+                // Como hemos mandado el token correctamente, esperamos un 200.
 
-            // duration indica que Cypress midió el tiempo de respuesta.
-            expect(response.duration).to.be.greaterThan(0)
+                // Si el token es correcto, el carrito debe responder con 200.
+                expect(cartResponse.status).to.eq(200)
+
+                // La API devuelve el carrito como un array.
+                // Puede venir vacío, por ejemplo [], si el usuario no tiene productos.
+                // Que venga vacío no significa que falle: significa que el carrito no tiene artículos.
+                expect(cartResponse.body).to.be.an('array')
+
+                // Comprobamos que Cypress ha medido tiempo de respuesta.
+                expect(cartResponse.duration).to.be.greaterThan(0)
+            })
         })
     })
 
